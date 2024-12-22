@@ -34,7 +34,7 @@ class QuizServer {
   int rankCounter = 1;
   bool quizStarted = false; // クイズ開始フラグを追加
 
-  SecureServerSocket? _secureServerSocket;
+  HttpServer? _httpServer;
 
   /// サーバーの起動
   Future<void> startServer() async {
@@ -43,15 +43,30 @@ class QuizServer {
       ..useCertificateChain('/etc/letsencrypt/live/yourdomain.com/fullchain.pem')
       ..usePrivateKey('/etc/letsencrypt/live/yourdomain.com/privkey.pem');
 
-    _secureServerSocket = await SecureServerSocket.bind(InternetAddress.anyIPv4, 443, securityContext);
-    print('サーバーが wss://${_secureServerSocket!.address.address}:443 で起動しました');
+    _httpServer = await HttpServer.bindSecure(
+      InternetAddress.anyIPv4,
+      443,
+      securityContext,
+    );
+    print('サーバーが wss://${_httpServer!.address.address}:443 で起動しました');
 
-    _secureServerSocket!.listen((client) {
-      WebSocketTransformer.upgrade(client).then((WebSocket socket) {
-        handleWebSocket(socket);
-      }).catchError((e) {
-        print('WebSocket変換エラー: $e');
-      });
+    _httpServer!.listen((HttpRequest request) async {
+      if (WebSocketTransformer.isUpgradeRequest(request)) {
+        try {
+          WebSocket socket = await WebSocketTransformer.upgrade(request);
+          handleWebSocket(socket);
+        } catch (e) {
+          print('WebSocket変換エラー: $e');
+          request.response.statusCode = HttpStatus.internalServerError;
+          request.response.close();
+        }
+      } else {
+        // 通常のHTTPリクエストに対するレスポンス
+        request.response
+          ..statusCode = HttpStatus.forbidden
+          ..write('WebSocket connections only.')
+          ..close();
+      }
     });
   }
 
@@ -87,7 +102,6 @@ class QuizServer {
       if (client != null) {
         clients.remove(client);
         print('${client.name} が切断しました');
-        // クライアントが全員切断された場合、クイズをリセット
         if (clients.isEmpty) {
           resetQuiz();
         }
@@ -131,7 +145,7 @@ class QuizServer {
       broadcast({'type': 'end', 'message': 'クイズ終了！'});
       print('すべてのクイズが終了しました。サーバーを停止します。');
       // サーバーを停止する場合は以下のコメントを外します
-      // _secureServerSocket?.close();
+      // _httpServer?.close();
     }
   }
 
@@ -188,6 +202,7 @@ void main() async {
   await server.startServer();
 
   print('Enterキーを押してクイズを開始します。');
+  print('Enterキーを押して次の質問に進みます。');
 
   // 標準入力をリスン
   StreamSubscription<List<int>>? subscription;
