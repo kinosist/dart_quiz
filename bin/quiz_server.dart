@@ -17,20 +17,7 @@ class Client {
 /// クイズサーバーのクラス
 class QuizServer {
   List<Client> clients = [];
-  List<Map<String, dynamic>> questions = [
-    {
-      'question': '日本の首都はどこですか？',
-      'options': ['東京', '大阪', '京都'],
-      'answer': '東京'
-    },
-    {
-      'question': '2 + 2 は？',
-      'options': ['3', '4', '5'],
-      'answer': '4'
-    },
-    // 追加の質問をここに
-  ];
-
+  List<Map<String, dynamic>> questions = []; // クイズデータを格納するリスト
   int currentQuestionIndex = 0;
   bool acceptingAnswers = false;
   int rankCounter = 1;
@@ -42,6 +29,9 @@ class QuizServer {
   /// サーバーの起動
   Future<void> startServer() async {
     try {
+      // クイズデータの読み込み
+      await loadQuestionsFromFile('questions.json');
+
       _httpServer = await HttpServer.bind(
         InternetAddress.anyIPv4,
         8080,
@@ -79,6 +69,28 @@ class QuizServer {
       });
     } catch (e) {
       print('サーバー起動エラー: $e');
+      exit(1);
+    }
+  }
+
+  /// クイズデータをJSONファイルから読み込む
+  Future<void> loadQuestionsFromFile(String filePath) async {
+    try {
+      final file = File(filePath);
+      if (!await file.exists()) {
+        print('クイズデータファイルが見つかりません: $filePath');
+        exit(1);
+      }
+
+      final contents = await file.readAsString();
+      final List<dynamic> jsonData = jsonDecode(contents);
+
+      // JSONデータをList<Map<String, dynamic>>に変換
+      questions = jsonData.map<Map<String, dynamic>>((item) => Map<String, dynamic>.from(item)).toList();
+
+      print('クイズデータが正常に読み込まれました。合計質問数: ${questions.length}');
+    } catch (e) {
+      print('クイズデータの読み込みエラー: $e');
       exit(1);
     }
   }
@@ -146,8 +158,12 @@ class QuizServer {
       return;
     }
 
+    if (currentQuestionIndex >= questions.length) {
+      print('クイズの質問が不足しています。');
+      return;
+    }
+
     quizStarted = true;
-    currentQuestionIndex = 0;
     rankCounter = 1;
     isQuestionActive = false; // 初期状態では質問がアクティブでない
     print('クイズを開始します');
@@ -181,6 +197,11 @@ class QuizServer {
   void sendQuestion() {
     if (isQuestionActive) {
       print('既に質問が送信されています。新しい質問は送信できません。');
+      return;
+    }
+
+    if (currentQuestionIndex >= questions.length) {
+      print('全ての質問が終了しています。');
       return;
     }
 
