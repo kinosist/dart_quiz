@@ -38,17 +38,11 @@ class QuizServer {
 
   /// サーバーの起動
   Future<void> startServer() async {
-    // SSL/TLS証明書と秘密鍵のパスを指定
-    final securityContext = SecurityContext()
-      ..useCertificateChain('/etc/letsencrypt/live/yourdomain.com/fullchain.pem')
-      ..usePrivateKey('/etc/letsencrypt/live/yourdomain.com/privkey.pem');
-
-    _httpServer = await HttpServer.bindSecure(
+    _httpServer = await HttpServer.bind(
       InternetAddress.anyIPv4,
-      443,
-      securityContext,
+      8080,
     );
-    print('サーバーが wss://${_httpServer!.address.address}:443 で起動しました');
+    print('サーバーが ws://${_httpServer!.address.address}:8080 で起動しました');
 
     _httpServer!.listen((HttpRequest request) async {
       if (WebSocketTransformer.isUpgradeRequest(request)) {
