@@ -35,6 +35,7 @@ class QuizServer {
   bool acceptingAnswers = false;
   int rankCounter = 1;
   bool quizStarted = false; // クイズ開始フラグを追加
+  bool isQuestionActive = false; // 質問がアクティブかどうかを示すフラグ
 
   HttpServer? _httpServer;
 
@@ -90,6 +91,8 @@ class QuizServer {
     socket.listen((message) {
       try {
         var data = jsonDecode(message);
+        print('受信メッセージ: $data');
+
         if (data['type'] == 'join') {
           var client = Client(data['name'], socket);
           clients.add(client);
@@ -146,6 +149,7 @@ class QuizServer {
     quizStarted = true;
     currentQuestionIndex = 0;
     rankCounter = 1;
+    isQuestionActive = false; // 初期状態では質問がアクティブでない
     print('クイズを開始します');
 
     // 最初の質問を送信
@@ -156,6 +160,11 @@ class QuizServer {
   void sendNextQuestion() {
     if (!quizStarted) {
       print('クイズが開始されていません。');
+      return;
+    }
+
+    if (isQuestionActive) {
+      print('現在の質問がまだアクティブです。次の質問を送信できません。');
       return;
     }
 
@@ -170,6 +179,12 @@ class QuizServer {
 
   /// クイズの出題
   void sendQuestion() {
+    if (isQuestionActive) {
+      print('既に質問が送信されています。新しい質問は送信できません。');
+      return;
+    }
+
+    isQuestionActive = true;
     acceptingAnswers = true;
     var question = questions[currentQuestionIndex];
     var payload = {
@@ -186,6 +201,8 @@ class QuizServer {
       broadcast({'type': 'timeout', 'message': '時間切れです'});
       resetRanks();
       currentQuestionIndex++;
+      isQuestionActive = false;
+      print('次の質問の準備ができました。');
     });
   }
 
@@ -196,6 +213,7 @@ class QuizServer {
     currentQuestionIndex = 0;
     acceptingAnswers = false;
     rankCounter = 1;
+    isQuestionActive = false;
     // 他の必要なリセット処理をここに追加
   }
 
